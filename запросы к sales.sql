@@ -93,4 +93,138 @@ WHERE year = 2020 AND plan ='gold'
 WINDOW w as (
  partition by year)
 
-4) 
+4)  **Сравнение с декабрем**
+
+Есть таблица продаж sales. Посчитайте выручку по месяцам для тарифа silver.
+
+Для каждого месяца дополнительно укажите:
+выручку за декабрь этого же года (december);
+процент, который составляет выручка текущего месяца от december (perc).
+Процент округлите до целого.
+
+┌──────┬───────┬─────────┬──────────┬──────┐
+│ year │ month │ revenue │ december │ perc │
+├──────┼───────┼─────────┼──────────┼──────┤
+│ 2019 │ 1     │ 12000   │ 26400    │ 45   │
+│ 2019 │ 2     │ 39600   │ 26400    │ 150  │
+│ 2019 │ 3     │ 24000   │ 26400    │ 91   │
+│ 2019 │ 4     │ 18000   │ 26400    │ 68   │
+│ 2019 │ 5     │ 26400   │ 26400    │ 100  │
+│ 2019 │ 6     │ 32400   │ 26400    │ 123  │
+│ 2019 │ 7     │ 26400   │ 26400    │ 100  │
+│ 2019 │ 8     │ 26400   │ 26400    │ 100  │
+│ 2019 │ 9     │ 15000   │ 26400    │ 57   │
+│ 2019 │ 10    │ 25200   │ 26400    │ 95   │
+│ 2019 │ 11    │ 29700   │ 26400    │ 113  │
+│ 2019 │ 12    │ 26400   │ 26400    │ 100  │
+│ 2020 │ 1     │ 27000   │ 66000    │ 41   │
+│ 2020 │ 2     │ 61200   │ 66000    │ 93   │
+│ 2020 │ 3     │ 42000   │ 66000    │ 64   │
+│ 2020 │ 4     │ 42000   │ 66000    │ 64   │
+│ 2020 │ 5     │ 39000   │ 66000    │ 59   │
+│ 2020 │ 6     │ 52800   │ 66000    │ 80   │
+│ 2020 │ 7     │ 46800   │ 66000    │ 71   │
+│ 2020 │ 8     │ 33000   │ 66000    │ 50   │
+│ 2020 │ 9     │ 54000   │ 66000    │ 82   │
+│ 2020 │ 10    │ 57000   │ 66000    │ 86   │
+│ 2020 │ 11    │ 62700   │ 66000    │ 95   │
+│ 2020 │ 12    │ 66000   │ 66000    │ 100  │
+└──────┴───────┴─────────┴──────────┴──────┘
+
+WITH a as (
+SELECT year,
+       month, 
+       revenue as revenue
+FROM sales 
+WHERE plan = 'silver'
+ORDER BY year),
+b as
+
+(
+SELECT year,
+       SUM(revenue) OVER (ORDER BY year ROWS BETWEEN current row and current row  ) as december
+FROM sales 
+WHERE plan = 'silver' AND month=12
+ORDER BY year)
+
+SELECT a.year,
+       a.month, 
+       a.revenue, 
+       b.december, 
+       round(a.revenue*100.0/december) as perc
+FROM a JOIN b ON a.year=b.year
+
+
+5) **Вклад тарифов**
+
+Есть таблица продаж sales. Посчитайте, какой вклад (в процентах) внес каждый из тарифов в общую выручку за год.
+Процент округлите до целого.
+
+┌──────┬──────────┬─────────┬─────────┬──────┐
+│ year │   plan   │ revenue │  total  │ perc │
+├──────┼──────────┼─────────┼─────────┼──────┤
+│ 2019 │ gold     │ 252960  │ 722460  │ 35   │
+│ 2019 │ platinum │ 168000  │ 722460  │ 23   │
+│ 2019 │ silver   │ 301500  │ 722460  │ 42   │
+│ 2020 │ gold     │ 411840  │ 1244940 │ 33   │
+│ 2020 │ platinum │ 249600  │ 1244940 │ 20   │
+│ 2020 │ silver   │ 583500  │ 1244940 │ 47   │
+└──────┴──────────┴─────────┴─────────┴──────┘
+
+WITH a as (
+SELECT
+  year, plan,
+  SUM(revenue) as revenue
+FROM sales
+GROUP BY plan, year
+ORDER BY year),
+ b as  
+(SELECT
+       year,
+       revenue,
+       SUM(revenue) OVER (partition by year) as total
+FROM a
+ORDER BY year)
+
+SELECT a.year,
+       a.plan,
+       a.revenue, 
+       b.total, 
+       ROUND(a.revenue*100.0/b.total) as perc
+FROM a 
+JOIN b ON a.year=b.year
+GROUP BY a.plan, a.year,a.revenue,b.total,perc
+ORDER BY a.year, a.plan
+
+6)  **Высокая, средняя и низкая выручка**
+Есть таблица продаж sales. Разбейте месяцы 2020 года на три группы по выручке:
+
+tile = 1 — высокая,
+tile = 2 — средняя,
+tile = 3 — низкая.
+
+──────┬───────┬─────────┬──────┐
+│ year │ month │ revenue │ tile │
+├──────┼───────┼─────────┼──────┤
+│ 2020 │ 11    │ 150540  │ 1    │
+│ 2020 │ 6     │ 130080  │ 1    │
+│ 2020 │ 7     │ 115920  │ 1    │
+│ 2020 │ 12    │ 115800  │ 1    │
+│ 2020 │ 10    │ 111000  │ 2    │
+│ 2020 │ 4     │ 110400  │ 2    │
+│ 2020 │ 2     │ 103440  │ 2    │
+│ 2020 │ 5     │ 97560   │ 2    │
+│ 2020 │ 9     │ 96600   │ 3    │
+│ 2020 │ 3     │ 90000   │ 3    │
+│ 2020 │ 8     │ 75000   │ 3    │
+│ 2020 │ 1     │ 48600   │ 3    │
+└──────┴───────┴─────────┴──────┘
+
+SELECT year, 
+       month, 
+       SUM(revenue) as revenue ,
+       NTILE(3) OVER (ORDER BY  SUM(revenue) DESC) as  tile
+FROM sales
+WHERE year =2020
+GROUP BY month, year
+ORDER BY revenue DESC
