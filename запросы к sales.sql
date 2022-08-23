@@ -25,13 +25,13 @@
 
 SELECT year, 
        month, 
-       SUM(revenue) OVER (partition by month) as revenue, 
-       LAG(revenue) OVER () as prev,
-       ROUND(revenue*100.0/lag(revenue) over w) as perc
+       SUM(revenue) OVER (partition by month) AS revenue, 
+       LAG(revenue) OVER () AS  prev,
+       ROUND(revenue*100.0/lag(revenue) over w) AS perc
 FROM sales
 WHERE year = 2020 AND plan ='gold'
-WINDOW w as (
- partition by year)
+WINDOW w AS (
+ partition BY year)
  
  
 2) **Выручка по тарифам за 1 квартал 2020**
@@ -54,7 +54,7 @@ SELECT plan,
        year, 
        month,
        revenue,
-       SUM(revenue) OVER (partition by plan order by month) as total
+       SUM(revenue) OVER (partition by plan ORDER BY month) AS total
 FROM sales
 WHERR 1=1 AND 
 year= 2020 AND
@@ -85,13 +85,13 @@ month IN (1,2,3)
 
 SELECT year,
        month, 
-       SUM(revenue) OVER (partition by month) as revenue, 
-       LAG(revenue) OVER () as prev,
-        ROUND(revenue*100.0/lag(revenue) OVER w) as perc
+       SUM(revenue) OVER (partition by month) AS revenue, 
+       LAG(revenue) OVER () AS prev,
+        ROUND(revenue*100.0/lag(revenue) OVER w) AS perc
 FROM sales
 WHERE year = 2020 AND plan ='gold'
-WINDOW w as (
- partition by year)
+WINDOW w AS (
+ partition BY year)
 
 4)  **Сравнение с декабрем**
 
@@ -131,18 +131,18 @@ WINDOW w as (
 │ 2020 │ 12    │ 66000   │ 66000    │ 100  │
 └──────┴───────┴─────────┴──────────┴──────┘
 
-WITH a as (
+WITH a AS (
 SELECT year,
        month, 
-       revenue as revenue
+       revenue AS revenue
 FROM sales 
 WHERE plan = 'silver'
 ORDER BY year),
-b as
+b AS
 
 (
 SELECT year,
-       SUM(revenue) OVER (ORDER BY year ROWS BETWEEN current row and current row  ) as december
+       SUM(revenue) OVER (ORDER BY year ROWS BETWEEN current row and current row  ) AS december
 FROM sales 
 WHERE plan = 'silver' AND month=12
 ORDER BY year)
@@ -151,7 +151,7 @@ SELECT a.year,
        a.month, 
        a.revenue, 
        b.december, 
-       round(a.revenue*100.0/december) as perc
+       round(a.revenue*100.0/december) AS perc
 FROM a JOIN b ON a.year=b.year
 
 
@@ -171,18 +171,18 @@ FROM a JOIN b ON a.year=b.year
 │ 2020 │ silver   │ 583500  │ 1244940 │ 47   │
 └──────┴──────────┴─────────┴─────────┴──────┘
 
-WITH a as (
+WITH a AS (
 SELECT
   year, plan,
-  SUM(revenue) as revenue
+  SUM(revenue) AS revenue
 FROM sales
 GROUP BY plan, year
 ORDER BY year),
- b as  
+ b AS  
 (SELECT
        year,
        revenue,
-       SUM(revenue) OVER (partition by year) as total
+       SUM(revenue) OVER (partition BY year) AS total
 FROM a
 ORDER BY year)
 
@@ -190,7 +190,7 @@ SELECT a.year,
        a.plan,
        a.revenue, 
        b.total, 
-       ROUND(a.revenue*100.0/b.total) as perc
+       ROUND(a.revenue*100.0/b.total) AS perc
 FROM a 
 JOIN b ON a.year=b.year
 GROUP BY a.plan, a.year,a.revenue,b.total,perc
@@ -222,9 +222,100 @@ tile = 3 — низкая.
 
 SELECT year, 
        month, 
-       SUM(revenue) as revenue ,
-       NTILE(3) OVER (ORDER BY  SUM(revenue) DESC) as  tile
+       SUM(revenue) AS revenue ,
+       NTILE(3) OVER (ORDER BY  SUM(revenue) DESC) AS  tile
 FROM sales
 WHERE year =2020
 GROUP BY month, year
 ORDER BY revenue DESC
+
+
+7) **2020 vs 2019**
+Есть таблица продаж sales. Посчитайте выручку по кварталам 2020 года.
+
+Для каждого квартала дополнительно укажите:
+
+выручку за аналогичный квартал 2019 года (prev);
+процент, который составляет выручка текущего квартала от prev (perc).
+Процент округлите до целого.
+──────┬─────────┬─────────┬────────┬──────┐
+│ year │ quarter │ revenue │  prev  │ perc │
+├──────┼─────────┼─────────┼────────┼──────┤
+│ 2020 │ 1       │ 242040  │ 155040 │ 156  │
+│ 2020 │ 2       │ 338040  │ 162600 │ 208  │
+│ 2020 │ 3       │ 287520  │ 204120 │ 141  │
+│ 2020 │ 4       │ 377340  │ 200700 │ 188  │
+└──────┴─────────┴─────────┴────────┴──────┘
+
+WITH data AS (
+  SELECT
+    year, quarter,
+    SUM(revenue) AS revenue,
+    LAG(sum(revenue), 4) over w AS prev,
+    ROUND(
+      SUM(revenue) * 100.0 / lag(sum(revenue), 4) over ()
+    ) AS perc
+  FROM sales
+  GROUP BY  year, quarter
+  window w AS (
+    ORDER BY year, quarter
+  )
+)
+SELECT 
+  year, quarter, revenue,
+  prev, perc
+FROM data
+WHERE year = 2020
+ORDER BY quarter;
+
+8) **Рейтинг месяцев по количеству продаж в 2020**
+Есть таблица продаж sales. Составьте рейтинг месяцев 2020 года с точки зрения количества продаж (quantity) по каждому из тарифов. 
+Чем больше подписок тарифа P было продано в месяц M, тем выше место M в рейтинге по тарифу P:
+┌──────┬───────┬────────┬──────┬──────────┐
+│ year │ month │ silver │ gold │ platinum │
+├──────┼───────┼────────┼──────┼──────────┤
+│ 2020 │ 1     │ 12     │ 12   │ 12       │
+│ 2020 │ 2     │ 3      │ 8    │ 10       │
+│ 2020 │ 3     │ 8      │ 7    │ 8        │
+│ 2020 │ 4     │ 8      │ 3    │ 4        │
+│ 2020 │ 5     │ 10     │ 6    │ 5        │
+│ 2020 │ 6     │ 6      │ 2    │ 2        │
+│ 2020 │ 7     │ 7      │ 4    │ 3        │
+│ 2020 │ 8     │ 11     │ 9    │ 10       │
+│ 2020 │ 9     │ 5      │ 9    │ 9        │
+│ 2020 │ 10    │ 4      │ 5    │ 7        │
+│ 2020 │ 11    │ 2      │ 1    │ 1        │
+│ 2020 │ 12    │ 1      │ 9    │ 6        │
+└──────┴───────┴────────┴──────┴──────────┘
+
+WITH a as (
+       SELECT year, month,
+       RANK() over ( ORDER BY quantity DESC) as silver
+FROM sales 
+WHERE plan='silver' AND year=2020
+--group by month
+ORDER BY month),
+ b AS
+ (SELECT year, month, 
+ RANK() over ( ORDER BY quantity DESC) AS gold
+FROM sales 
+WHERE plan='gold' AND year=2020
+ORDER BY month),
+
+c AS
+(SELECT year, 
+       month, 
+       rank() over ( ORDER BY quantity DESC) AS platinum
+FROM sales 
+WHERE plan='platinum' AND year=2020
+ORDER BY month)
+
+SELECT a.year,
+       a.month,
+       a.silver, 
+       b.gold,
+       c.platinum
+FROM a JOIN b ON a.month=b.month 
+JOIN c ON b.month=c.month
+ORDER BY a.month
+
